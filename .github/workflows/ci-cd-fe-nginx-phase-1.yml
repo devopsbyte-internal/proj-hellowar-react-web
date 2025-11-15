@@ -1,0 +1,73 @@
+name: CI/CD - React-Vite - Nginx (Phase-1)
+
+on:
+  # Manual trigger for now (like backend Phase-1)
+  workflow_dispatch:
+    inputs:
+    run_description:
+      description: 'Description of this run'
+      required: false
+      default: 'Manual Trigger'
+    skip_sonar:
+      description: 'Skip SonarCloud Scan?'
+      type: boolean
+      required: false
+      default: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Package dist
+        run: |
+          tar czf dist.tar.gz -C dist .
+
+      - name: Copy bundle to FE EC2 and deploy
+        env:
+          FE_EC2_HOST: ${{ secrets.FE_EC2_HOST }}
+          FE_EC2_USER: ${{ secrets.FE_EC2_USER }}
+          FE_EC2_SSH_KEY: ${{ secrets.FE_EC2_SSH_KEY }}
+          FE_TARGET_DIR: ${{ secrets.FE_TARGET_DIR }}
+        run: |
+          set -e
+
+          # Prepare SSH key
+          mkdir -p ~/.ssh
+          echo "$FE_EC2_SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          # Copy tarball to FE EC2
+          scp -o StrictHostKeyChecking=no dist.tar.gz "${FE_EC2_USER}@${FE_EC2_HOST}:/tmp/fe-dist.tar.gz"
+
+          # Remote deploy on FE EC2
+          ssh -o StrictHostKeyChecking=no "${FE_EC2_USER}@${FE_EC2_HOST}" "bash -s" << 'EOF'
+          set -e
+
+          FE_TARGET_DIR="${FE_TARGET_DIR:-/var/www/hellowar}"
+
+          # Ensure target dir exists
+          sudo mkdir -p "$FE_TARGET_DIR"
+
+          # Clean old content and unpack new build
+          sudo rm -rf "${FE_TARGET_DIR:?}/"*
+          sudo tar xzf /tmp/fe-dist.tar.gz -C "$FE_TARGET_DIR"
+
+          # Clean up temp file
+          sudo rm -f /tmp/fe-dist.tar.gz
+          EOF
