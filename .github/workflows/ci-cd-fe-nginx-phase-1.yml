@@ -38,9 +38,20 @@ jobs:
         run: |
           tar czf dist.tar.gz -C dist .
 
+      - name: Get EC2 IP dynamically
+        id: get_ip
+        uses: devopsbyte-internal/cicd-actions/.github/actions/get-ec2-ip@main
+        with:
+          instance-tag: "hellowar-tomcat-fe"
+          aws-region: "us-east-1"
+
+      - name: Set EC2 host env
+        run: echo "FE_EC2_HOST=${{ steps.get_ip.outputs.ec2_ip }}" >> $GITHUB_ENV
+        
+
       - name: Copy bundle to FE EC2 and deploy
         env:
-          FE_EC2_HOST: ${{ secrets.FE_EC2_HOST }}
+          # FE_EC2_HOST: ${{ secrets.FE_EC2_HOST }}
           FE_EC2_USER: ${{ secrets.FE_EC2_USER }}
           FE_EC2_SSH_KEY: ${{ secrets.FE_EC2_SSH_KEY }}
           FE_TARGET_DIR: ${{ secrets.FE_TARGET_DIR }}
@@ -78,4 +89,5 @@ jobs:
           # Clean up temp file
           sudo rm -f /tmp/fe-dist.tar.gz
           EOF
+
 
