@@ -41,6 +41,12 @@ jobs:
         run: |
           tar czf dist.tar.gz -C dist .
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+
       - name: Get EC2 IP dynamically
         id: get_ip
         uses: devopsbyte-internal/cicd-actions/.github/actions/get-ec2-ip@main
@@ -92,6 +98,7 @@ jobs:
           # Clean up temp file
           sudo rm -f /tmp/fe-dist.tar.gz
           EOF
+
 
 
 
